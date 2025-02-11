@@ -1,0 +1,85 @@
+version: '3'
+services:
+  # Preprocessing Service
+  preprocess:
+    image: preprocessing-service:latest
+    container_name: preprocess
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - POSTGRES_HOST=maai-db
+      - POSTGRES_USER=maai
+      - POSTGRES_PASSWORD=maai123
+    depends_on:
+      - maai-db
+
+  # Embedding Service
+  embedding:
+    image: sentence-bert:latest
+    container_name: embedding
+    ports:
+      - "6000:6000"
+    volumes:
+      - ./embeddings:/app/embeddings
+    environment:
+      - WEAVIATE_HOST=weaviate
+    depends_on:
+      - weaviate
+
+  # Weaviate (Vector Database)
+  weaviate:
+    image: semitechnologies/weaviate:latest
+    container_name: weaviate
+    ports:
+      - "8080:8080"
+    environment:
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+
+  # RAG Pipeline
+  rag:
+    image: rag-pipeline:latest
+    container_name: rag
+    ports:
+      - "8000:8000"
+    environment:
+      - WEAVIATE_HOST=weaviate
+    depends_on:
+      - weaviate
+
+  # LLM Training
+  llm-training:
+    image: huggingface/transformers:latest
+    container_name: llm-training
+    ports:
+      - "7000:7000"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./models:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+
+  # PostgreSQL Database
+  maai-db:
+    image: postgres:latest
+    container_name: maai-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: maai
+      POSTGRES_PASSWORD: maai123
+      POSTGRES_DB: maai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+# Volumes for Persistent Storage
+volumes:
+  weaviate_data:
+  postgres_data:
